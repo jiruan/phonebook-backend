@@ -19,14 +19,8 @@ app.get('/api/persons', (request, response, next) => {
   PersonModel.find({})
     .then((persons) => {
       let filtered = persons.map((one) => (one.toJSON()));
-      if (request.query && request.query.contains) {
-        filtered = persons.filter((one) => {
-          const oneName = one.name.toLowerCase().replace('/s/g', '');
-          const queryName = request.query.contains.toLowerCase().replace('/s/g', '');
 
-          return oneName === queryName;
-        });
-      } else if (request.query && request.query.name) {
+      if (request.query && request.query.name) {
         filtered = persons.filter((one) => (
           one.name.toLowerCase() === request.query.name.toLowerCase()
         ));
@@ -76,7 +70,7 @@ app.put('/api/persons/:id', (request, response, next) => {
     }
   }
 
-  PersonModel.findByIdAndUpdate(request.params.id, match, { new: true })
+  PersonModel.findByIdAndUpdate(request.params.id, match, { new: true, runValidators: true, context: 'query' })
     .then((newDoc) => {
       if (newDoc) {
         response.json(newDoc);
@@ -90,26 +84,14 @@ app.put('/api/persons/:id', (request, response, next) => {
 });
 
 app.post('/api/persons', (request, response, next) => {
-  PersonModel.exists({ name: request.body.name })
-    .then((existence) => {
-      if (existence) {
-        response.status(400).json({
-          error: 'name must be unique',
-        });
-      } else {
-        const newPerson = new PersonModel({
-          name: request.body.name,
-          number: request.body.number,
-        });
+  const newPerson = new PersonModel({
+    name: request.body.name,
+    number: request.body.number,
+  });
 
-        newPerson.save()
-          .then((result) => {
-            response.json(result.toJSON());
-          })
-          .catch((error) => {
-            next(error);
-          });
-      }
+  newPerson.save()
+    .then((result) => {
+      response.json(result.toJSON());
     })
     .catch((error) => {
       next(error);
@@ -133,6 +115,10 @@ app.get('/info', (request, response, next) => {
 
 function getAllErrorHandler(error, request, response, next) {
   console.error(error.name, ': ', error.message);
+
+  if (error.name === 'ValidationError') {
+    return response.status(400).send({ error: error.message });
+  }
 
   if (error.name === 'ValidationError') {
     return response.status(400).send({ error: error.message });
